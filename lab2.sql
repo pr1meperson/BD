@@ -4,7 +4,7 @@ WHERE complexity = 'High'
    OR (complexity = 'Medium' AND start_date >= TO_DATE('2026-01-01', 'YYYY-MM-DD'))
 ORDER BY start_date DESC;
 
--- 2 SELECT з обчислюваними полями 
+
 SELECT qual_name AS "Кваліфікація", 
        hourly_rate AS "Ставка за годину ($)", 
        (hourly_rate * 8) AS "Денна ставка ($)"
