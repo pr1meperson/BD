@@ -4,12 +4,16 @@ CREATE SEQUENCE seq_qualifications START WITH 1;
 CREATE SEQUENCE seq_employees START WITH 1;
 CREATE SEQUENCE seq_customers START WITH 1;
 CREATE SEQUENCE seq_projects START WITH 1;
+    change_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 CREATE SEQUENCE seq_work_logs START WITH 1;
 
 -- 2. СТВОРЕННЯ ТАБЛИЦЬ (DDL)
 CREATE TABLE positions (
     pos_id NUMBER DEFAULT seq_positions.NEXTVAL PRIMARY KEY,
-    pos_name VARCHAR2(100) NOT NULL UNIQUE,
+    pos_name VARCHAR2(10
+    change_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP0) NOT NULL UNIQUE,
+    change_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    change_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     bonus_coeff NUMBER(3,2) CHECK (bonus_coeff >= 1.0)
 );
 
