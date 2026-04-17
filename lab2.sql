@@ -1,53 +1,156 @@
-SELECT title, complexity, start_date 
-FROM projects 
-WHERE complexity = 'High' 
-   OR (complexity = 'Medium' AND start_date >= TO_DATE('2026-01-01', 'YYYY-MM-DD'))
-ORDER BY start_date DESC;
+-- ==============================================================================
+-- 1. SELECT на базі однієї таблиці (Сортування, умови OR та AND)
+-- ОСОБЛИВІСТЬ: Комбінування логічних операторів та пріоритетність (дужки).
+-- ==============================================================================
+SELECT title, complexity, start_date
+FROM SYSTEM.projects
+WHERE complexity = 'High' -- Умова 1
+   OR (complexity = 'Medium' AND start_date >= TO_DATE('2026-01-01', 'YYYY-MM-DD')) -- Умова 2
+ORDER BY start_date DESC; -- Сортування від нових до старих
 
--- 2 SELECT з обчислюваними полями
+
+-- ==============================================================================
+-- 2. SELECT з виводом обчислюваних полів (виразів)
+-- ОСОБЛИВІСТЬ: Створення динамічних колонок, яких немає в самій таблиці.
+-- ==============================================================================
 SELECT qual_name AS "Кваліфікація",
-       hourly_rate AS "Ставка за годину ($)",
-       (hourly_rate * 8) AS "Денна ставка ($)"
-FROM qualifications
-ORDER BY hourly_rate DESC;
+       hourly_rate AS "Ставка за годину",
+       (hourly_rate * 8) AS "Денна ставка", -- Множення на кількість годин
+       (hourly_rate * 8 * 20) AS "Місячний фонд" -- Прогноз на місяць
+FROM SYSTEM.qualifications;
 
-SELECT e.full_name AS "Працівник",
-       p.title AS "Проект",
-       w.hours_worked AS "Години"
-FROM employees e
-JOIN work_logs w ON e.emp_id = w.emp_id
-JOIN projects p ON w.project_id = p.project_id
+
+-- ==============================================================================
+-- 3. SELECT на базі кількох таблиць (Сортування, AND/OR)
+-- ОСОБЛИВІСТЬ: Використання JOIN для об'єднання даних з трьох різних таблиць.
+-- ==============================================================================
+SELECT e.full_name AS "Співробітник", p.title AS "Проект", w.hours_worked AS "Години"
+FROM SYSTEM.employees e
+JOIN SYSTEM.work_logs w ON e.emp_id = w.emp_id -- Зв'язок працівник-лог
+JOIN SYSTEM.projects p ON w.project_id = p.project_id -- Зв'язок лог-проект
 WHERE w.hours_worked > 5
   AND (p.complexity = 'High' OR p.complexity = 'Medium')
 ORDER BY w.hours_worked DESC;
 
 
-SELECT c.company_name AS "Замовник",
-       NVL(p.title, 'Немає активних проектів') AS "Проект"
-FROM customers c
-LEFT JOIN projects p ON c.customer_id = p.customer_id;
+-- ==============================================================================
+-- 4. SELECT на базі кількох таблиць з типом поєднання Outer Join
+-- ОСОБЛИВІСТЬ: LEFT JOIN дозволяє побачити клієнтів, у яких ще немає проектів.
+-- ==============================================================================
+SELECT c.company_name,
+       NVL(p.title, 'Проектів не знайдено') as status -- NVL замінює NULL на текст
+FROM SYSTEM.customers c
+LEFT OUTER JOIN SYSTEM.projects p ON c.customer_id = p.customer_id;
 
-SELECT p.title AS "Проект",
-       SUM(w.hours_worked) AS "Всього годин"
-FROM projects p
-JOIN work_logs w ON p.project_id = w.project_id
+
+-- ==============================================================================
+-- 5. SELECT з використанням операторів Like, Between, In
+-- ОСОБЛИВІСТЬ: Фільтрація за шаблоном тексту та діапазоном дат.
+-- ==============================================================================
+SELECT title, complexity
+FROM SYSTEM.projects
+WHERE complexity IN ('High', 'Low') -- Тільки ці два типи
+  AND start_date BETWEEN TO_DATE('2026-01-01','YYYY-MM-DD') AND SYSDATE -- Поточний рік
+  AND title LIKE '%AI%'; -- Назва містить частку "AI"
+
+
+-- ==============================================================================
+-- 6. SELECT з використанням підсумовування та групування
+-- ОСОБЛИВІСТЬ: Агрегатна функція SUM та групування за назвою проекту.
+-- ==============================================================================
+SELECT p.title, SUM(w.hours_worked) as total_time
+FROM SYSTEM.projects p
+JOIN SYSTEM.work_logs w ON p.project_id = w.project_id
 GROUP BY p.title;
 
-SELECT full_name AS "Працівники на складних проектах"
-FROM employees
-WHERE emp_id IN (
-    SELECT w.emp_id
-    FROM work_logs w
-    JOIN projects p ON w.project_id = p.project_id
+
+-- ==============================================================================
+-- 7. SELECT з використанням під-запитів в частині Where
+-- ОСОБЛИВІСТЬ: Вкладений запит (Subquery) повертає список ID для фільтрації головного.
+-- ==============================================================================
+SELECT full_name
+FROM SYSTEM.employees
+WHERE qual_id IN (
+    SELECT qual_id FROM SYSTEM.qualifications
+    WHERE hourly_rate > (SELECT AVG(hourly_rate) FROM SYSTEM.qualifications)
+);
+
+
+-- ==============================================================================
+-- 8. SELECT з використанням під-запитів в частині From
+-- ОСОБЛИВІСТЬ: Обробка результатів вже відфільтрованої вибірки (Inline View).
+-- ==============================================================================
+SELECT MAX(temp.hours_worked) as max_hours
+FROM (SELECT hours_worked FROM SYSTEM.work_logs WHERE hours_worked <= 12) temp;
+
+
+-- ==============================================================================
+-- 9. Ієрархічний SELECT-запит (Connect By) - СКЛАДНИЙ ЗАПИТ №1
+-- ОСОБЛИВІСТЬ: Використання специфічних операторів Oracle для дерев'яної структури.
+-- ==============================================================================
+SELECT LEVEL, -- Рівень вкладеності
+       LPAD(' ', 2*(LEVEL-1)) || full_name as hierarchy_tree -- Відступи для візуалізації
+FROM SYSTEM.employees
+START WITH manager_id IS NULL -- Починаємо з топ-менеджера
+CONNECT BY PRIOR emp_id = manager_id; -- Будуємо зв'язок "батько-дитина"
+
+
+-- ==============================================================================
+-- 10. SELECT-запит типу CrossTab (Pivot) - СКЛАДНИЙ ЗАПИТ №2
+-- ОСОБЛИВІСТЬ: Трансформація вертикальних даних у горизонтальну форму звіту.
+-- ==============================================================================
+SELECT * FROM
+(SELECT complexity FROM SYSTEM.projects)
+PIVOT (COUNT(complexity) FOR complexity IN ('High' AS High, 'Medium' AS Med, 'Low' AS Low));
+
+
+-- ==============================================================================
+-- 11. UPDATE на базі однієї таблиці
+-- ОСОБЛИВІСТЬ: Просте оновлення значень за текстовим фільтром.
+-- ==============================================================================
+UPDATE SYSTEM.qualifications SET hourly_rate = hourly_rate + 5 WHERE qual_name = 'Junior';
+
+
+-- ==============================================================================
+-- 12. UPDATE на базі кількох таблиць (через підзапит)
+-- ОСОБЛИВІСТЬ: Зміна даних в одній таблиці на основі умов з іншої.
+-- ==============================================================================
+UPDATE SYSTEM.qualifications SET hourly_rate = hourly_rate + 2
+WHERE qual_id IN (
+    SELECT e.qual_id FROM SYSTEM.employees e
+    JOIN SYSTEM.work_logs w ON e.emp_id = w.emp_id
+    JOIN SYSTEM.projects p ON w.project_id = p.project_id
     WHERE p.complexity = 'High'
 );
 
-UPDATE qualifications
-SET hourly_rate = hourly_rate + 5
-WHERE qual_name = 'Junior';
+
+-- ==============================================================================
+-- 13. Append (INSERT) з явно вказаними значеннями
+-- ОСОБЛИВІСТЬ: Додавання одного конкретного рядка.
+-- ==============================================================================
+INSERT INTO SYSTEM.customers (company_name, has_debt) VALUES ('Microsoft', 0);
 
 
-DELETE FROM work_logs
-WHERE hours_worked < 2;
+-- ==============================================================================
+-- 14. Append (INSERT) для додавання записів з інших таблиць
+-- ОСОБЛИВІСТЬ: Використання конструкції INSERT INTO ... SELECT.
+-- ==============================================================================
+INSERT INTO SYSTEM.work_logs (emp_id, project_id, hours_worked, description)
+SELECT emp_id, project_id, hours_worked, 'Copy: ' || description
+FROM SYSTEM.work_logs WHERE log_id = 1;
 
-COMMIT;
+
+-- ==============================================================================
+-- 15. DELETE для видалення вибраних записів
+-- ОСОБЛИВІСТЬ: Видалення даних за числовим обмеженням.
+-- ==============================================================================
+DELETE FROM SYSTEM.work_logs WHERE hours_worked < 2;
+
+
+-- ==============================================================================
+-- 16. DELETE для видалення всіх даних з таблиці (Приклад)
+-- ОСОБЛИВІСТЬ: Очищення таблиці (закоментовано для безпеки).
+-- ==============================================================================
+-- DELETE FROM SYSTEM.work_logs;
+
+COMMIT; -- Фіксація всіх змін у базі даних
